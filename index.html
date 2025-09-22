@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <!-- Prevent mobile browsers from zooming on form controls by disabling user scaling -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Branching Dialogue Editor</title>
   <style>
     body {
@@ -79,6 +80,11 @@
       padding: 6px;
       margin-bottom: 12px;
       box-sizing: border-box;
+    }
+
+    /* Ensure form controls have at least a 16px font size to prevent mobile auto-zoom */
+    input[type="text"], textarea, button, select {
+      font-size: 16px !important;
     }
   </style>
 </head>
