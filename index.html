@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Branching Dialogue Editor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f7f7f7;
+    }
+    #app {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    #controls button {
+      flex: 1 1 auto;
+      padding: 6px;
+    }
+    #controls input[type="file"] {
+      flex: 1 1 auto;
+    }
+    #editor {
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    textarea {
+      width: 100%;
+      min-height: 60px;
+      padding: 6px;
+      box-sizing: border-box;
+      margin-bottom: 12px;
+      resize: vertical;
+      font-size: 1rem;
+    }
+    .response {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+    .response input[type="text"] {
+      flex: 1 1 auto;
+      padding: 4px;
+    }
+    .response button {
+      flex: 0 0 auto;
+      padding: 4px 6px;
+      font-size: 0.85rem;
+    }
+    .link-info {
+      flex: 0 0 auto;
+      font-size: 0.8rem;
+      padding: 4px 6px;
+    }
+    #addResponseButton {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      padding: 8px;
+    }
+    #nodeSelect {
+      width: 100%;
+      padding: 6px;
+      margin-bottom: 12px;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <h2>Branching Dialogue Editor</h2>
+  <div id="controls">
+    <button id="newNodeButton">New Node</button>
+    <button id="exportButton">Export JSON</button>
+    <button id="exportTextButton">Export Text</button>
+    <button id="backButton">Back</button>
+    <button id="refreshNamesButton">Refresh Names</button>
+    <input type="file" id="importFile" accept=".json,.txt">
+  </div>
+  <div>
+    <label for="nodeSelect">Go to Node:</label>
+    <select id="nodeSelect"></select>
+  </div>
+
+  <!-- History display -->
+  <div id="historySection" style="margin-top: 12px;">
+    <h4 style="margin-bottom:4px;">History</h4>
+    <div id="historyList" style="font-size:0.9rem; line-height:1.4;"></div>
+  </div>
+  <div id="editor">
+    <h3>Node <span id="nodeIdDisplay"></span></h3>
+    <label for="npcInput">NPC says:</label>
+    <textarea id="npcInput" placeholder="Enter NPC dialogue..."></textarea>
+    <h4>Player Responses:</h4>
+    <div id="responsesContainer"></div>
+    <button id="addResponseButton">Add Response</button>
+  </div>
+</div>
+
+<script>
+// Self-invoking function to avoid polluting the global scope
+(function() {
+  let nodes = {};
+  let currentNodeId = null;
+  let nextNodeIdCounter = 1;
+  // Keeps track of the path taken through the conversation. Each entry is a node id.
+  let history = [];
+
+  // Helper to create a short preview of a node's NPC text.
+  // Cleans whitespace and truncates long strings with an ellipsis.
+  function getPreview(text) {
+    const cleaned = (text || '').trim().replace(/\s+/g, ' ');
+    if (!cleaned) return '[no text]';
+    return cleaned.length > 30 ? cleaned.slice(0, 30) + '…' : cleaned;
+  }
+
+  // Utility: create a new dialogue node
+  function createNode(text = '') {
+    const id = nextNodeIdCounter++;
+    nodes[id] = { id: id, text: text, responses: [] };
+    updateNodeSelect();
+    return id;
+  }
+
+  // Render the currently selected node
+  function renderNode(id) {
+    currentNodeId = id;
+    const node = nodes[id];
+    if (!node) return;
+    const header = document.getElementById('nodeIdDisplay');
+    // Display both id and a preview of the NPC text for easier identification
+    const preview = getPreview(node.text);
+    header.textContent = `${id}: ${preview}`;
+    document.getElementById('npcInput').value = node.text;
+    const container = document.getElementById('responsesContainer');
+    container.innerHTML = '';
+    node.responses.forEach((resp, index) => {
+      const div = document.createElement('div');
+      div.className = 'response';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = resp.text;
+      input.dataset.index = index;
+      input.className = 'response-text';
+      div.appendChild(input);
+      // Show link info if exists
+      const linkInfo = document.createElement('span');
+      linkInfo.className = 'link-info';
+      linkInfo.textContent = resp.nextNodeId ? `(→ ${resp.nextNodeId})` : '';
+      div.appendChild(linkInfo);
+      // Create branch button
+      const branchBtn = document.createElement('button');
+      branchBtn.textContent = 'Create Branch';
+      branchBtn.dataset.index = index;
+      branchBtn.className = 'create-branch';
+      div.appendChild(branchBtn);
+      // Link button
+      const linkBtn = document.createElement('button');
+      linkBtn.textContent = 'Link…';
+      linkBtn.dataset.index = index;
+      linkBtn.className = 'link-existing';
+      div.appendChild(linkBtn);
+      // Delete button
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Delete';
+      delBtn.dataset.index = index;
+      delBtn.className = 'delete-response';
+      div.appendChild(delBtn);
+      container.appendChild(div);
+    });
+  }
+
+  // Render the conversation history as a clickable trail
+  function renderHistory() {
+    const list = document.getElementById('historyList');
+    list.innerHTML = '';
+    history.forEach((nid, idx) => {
+      const n = nodes[nid];
+      const span = document.createElement('span');
+      const preview = getPreview(n.text);
+      span.textContent = `${nid}: ${preview}`;
+      span.style.cursor = 'pointer';
+      span.dataset.index = idx;
+      // Highlight the current node
+      if (idx === history.length - 1) {
+        span.style.fontWeight = 'bold';
+        span.style.color = '#000';
+      } else {
+        span.style.fontWeight = 'normal';
+        span.style.color = '#555';
+      }
+      // Add arrow separator except before first
+      if (idx > 0) {
+        const arrow = document.createElement('span');
+        arrow.textContent = ' → ';
+        arrow.style.color = '#888';
+        list.appendChild(arrow);
+      }
+      list.appendChild(span);
+    });
+  }
+
+  // Navigate to a node, updating history and UI
+  function navigateToNode(id) {
+    if (history.length === 0 || history[history.length - 1] !== id) {
+      history.push(id);
+    }
+    renderNode(id);
+    updateNodeSelect();
+    renderHistory();
+  }
+
+  // Add a new response to the current node
+  function addResponse() {
+    if (!currentNodeId) return;
+    nodes[currentNodeId].responses.push({ text: '', nextNodeId: null });
+    renderNode(currentNodeId);
+  }
+
+  // Update the node selector dropdown
+  function updateNodeSelect() {
+    const select = document.getElementById('nodeSelect');
+    // Clear existing options
+    while (select.firstChild) select.removeChild(select.firstChild);
+    Object.values(nodes)
+      .sort((a,b) => a.id - b.id)
+      .forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n.id;
+        const preview = getPreview(n.text);
+        opt.textContent = `${n.id}: ${preview}`;
+        opt.title = n.text || '';
+        select.appendChild(opt);
+      });
+    if (currentNodeId && nodes[currentNodeId]) {
+      select.value = currentNodeId;
+    }
+  }
+
+  // Download helper: triggers a file download for exported content
+  function downloadFile(content, filename, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Export nodes as JSON
+  function exportJSON() {
+    const data = { start: currentNodeId, nodes: nodes };
+    const json = JSON.stringify(data, null, 2);
+    downloadFile(json, 'dialogue.json', 'application/json');
+  }
+
+  // Export as a simple human-readable text representation
+  function exportText() {
+    let out = [];
+    Object.values(nodes).forEach(node => {
+      out.push(`Node ${node.id}: ${node.text}`);
+      node.responses.forEach((resp, idx) => {
+        let line = `  ${idx + 1}. ${resp.text}`;
+        if (resp.nextNodeId) line += ` -> ${resp.nextNodeId}`;
+        out.push(line);
+      });
+      out.push('');
+    });
+    downloadFile(out.join('\n'), 'dialogue.txt', 'text/plain');
+  }
+
+  // Handle file import
+  function importFile(ev) {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const content = e.target.result;
+      try {
+        const data = JSON.parse(content);
+        if (data && data.nodes) {
+          nodes = {};
+          for (const [k, v] of Object.entries(data.nodes)) {
+            nodes[k] = {
+              id: v.id,
+              text: v.text,
+              responses: v.responses.map(r => ({ text: r.text, nextNodeId: r.nextNodeId }))
+            };
+          }
+          currentNodeId = data.start || Object.keys(nodes)[0];
+          nextNodeIdCounter = Math.max(...Object.keys(nodes).map(id => parseInt(id))) + 1;
+          updateNodeSelect();
+          renderNode(currentNodeId);
+        }
+      } catch (err) {
+        alert('Unable to parse file. Please select a valid JSON dialogue file.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // Event handler: handle buttons inside response rows
+  function onResponsesClick(ev) {
+    const target = ev.target;
+    const index = parseInt(target.dataset.index, 10);
+    if (isNaN(index)) return;
+    if (target.classList.contains('create-branch')) {
+      // Create a new branch node and link this response to it
+      const newId = createNode('');
+      nodes[currentNodeId].responses[index].nextNodeId = newId;
+      navigateToNode(newId);
+    } else if (target.classList.contains('link-existing')) {
+      // Replace button with a dropdown to select existing node. Include a preview of the NPC text for each node.
+      const dropdown = document.createElement('select');
+      dropdown.dataset.index = index;
+      dropdown.className = 'link-dropdown';
+      // Add a placeholder option to prompt selection
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Select node…';
+      dropdown.appendChild(placeholder);
+      // Populate the list sorted by id
+      Object.values(nodes)
+        .sort((a,b) => a.id - b.id)
+        .forEach(n => {
+          const option = document.createElement('option');
+          option.value = n.id;
+          const preview = getPreview(n.text);
+          option.textContent = `${n.id}: ${preview}`;
+          // Use the full NPC text in the title attribute for tooltips
+          option.title = n.text || '';
+          dropdown.appendChild(option);
+        });
+      target.replaceWith(dropdown);
+      dropdown.addEventListener('change', function() {
+        const dest = parseInt(this.value, 10);
+        if (!isNaN(dest) && nodes[dest]) {
+          nodes[currentNodeId].responses[index].nextNodeId = dest;
+          // Re-render the node to refresh the UI
+          renderNode(currentNodeId);
+        }
+      });
+    } else if (target.classList.contains('delete-response')) {
+      nodes[currentNodeId].responses.splice(index, 1);
+      renderNode(currentNodeId);
+    }
+  }
+
+  // Event handler: handle editing of response text
+  function onResponsesInput(ev) {
+    const target = ev.target;
+    const index = parseInt(target.dataset.index, 10);
+    if (!isNaN(index) && nodes[currentNodeId]) {
+      nodes[currentNodeId].responses[index].text = target.value;
+    }
+  }
+
+  // DOM ready
+  document.addEventListener('DOMContentLoaded', function() {
+    // Bind top-level buttons
+    document.getElementById('newNodeButton').addEventListener('click', function() {
+      const newId = createNode('');
+      navigateToNode(newId);
+    });
+    document.getElementById('exportButton').addEventListener('click', exportJSON);
+    document.getElementById('exportTextButton').addEventListener('click', exportText);
+    document.getElementById('importFile').addEventListener('change', importFile);
+    document.getElementById('nodeSelect').addEventListener('change', function() {
+      const selected = parseInt(this.value, 10);
+      if (nodes[selected]) {
+        navigateToNode(selected);
+      }
+    });
+    document.getElementById('npcInput').addEventListener('input', function() {
+      if (currentNodeId && nodes[currentNodeId]) {
+        nodes[currentNodeId].text = this.value;
+      }
+    });
+    document.getElementById('addResponseButton').addEventListener('click', addResponse);
+    const respContainer = document.getElementById('responsesContainer');
+    respContainer.addEventListener('click', onResponsesClick);
+    respContainer.addEventListener('input', onResponsesInput);
+    // Bind back button
+    document.getElementById('backButton').addEventListener('click', function() {
+      if (history.length > 1) {
+        history.pop();
+        const prevId = history[history.length - 1];
+        currentNodeId = prevId;
+        renderNode(prevId);
+        updateNodeSelect();
+        renderHistory();
+      }
+    });
+    // Bind refresh names button
+    document.getElementById('refreshNamesButton').addEventListener('click', function() {
+      updateNodeSelect();
+      renderHistory();
+    });
+    // Bind history click handler
+    document.getElementById('historyList').addEventListener('click', function(e) {
+      const idx = parseInt(e.target.dataset.index, 10);
+      if (!isNaN(idx) && idx < history.length) {
+        // Only act if not already on the selected node
+        if (idx !== history.length - 1) {
+          history = history.slice(0, idx + 1);
+          const id = history[history.length - 1];
+          currentNodeId = id;
+          renderNode(id);
+          updateNodeSelect();
+          renderHistory();
+        }
+      }
+    });
+    // Initialize with one blank node
+    const id = createNode('');
+    navigateToNode(id);
+  });
+})();
+</script>
+</body>
+</html>
