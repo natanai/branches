@@ -87,19 +87,19 @@
   <h2>Branching Dialogue Editor</h2>
   <div id="controls">
     <button id="newNodeButton">New Node</button>
-    <button id="exportButton">Export JSON</button>
-    <button id="exportTextButton">Export Text</button>
+    <!-- Only TXT export and import; JSON functionality removed -->
+    <button id="exportTextButton">Save TXT</button>
     <button id="backButton">Back</button>
     <button id="refreshNamesButton">Refresh Names</button>
-    <input type="file" id="importFile" accept=".json,.txt">
+    <input type="file" id="importFile" accept=".txt">
   </div>
   <div>
     <label for="nodeSelect">Go to Node:</label>
     <select id="nodeSelect"></select>
   </div>
 
-  <!-- History display -->
-  <div id="historySection" style="margin-top: 12px;">
+  <!-- History display (hidden now to avoid clutter) -->
+  <div id="historySection" style="margin-top: 12px; display:none;">
     <h4 style="margin-bottom:4px;">History</h4>
     <div id="historyList" style="font-size:0.9rem; line-height:1.4;"></div>
   </div>
@@ -111,6 +111,16 @@
     <div id="responsesContainer"></div>
     <button id="addResponseButton">Add Response</button>
   </div>
+
+  <!-- NPC name and conversation log -->
+  <div style="margin-top: 12px;">
+    <label for="npcNameInput">NPC Name:</label>
+    <input type="text" id="npcNameInput" placeholder="NPC" style="width:100%; padding:6px; box-sizing:border-box;" />
+  </div>
+  <div id="conversationSection" style="margin-top: 12px;">
+    <h4 style="margin-bottom:4px;">Conversation</h4>
+    <div id="conversationLog" style="font-size:0.9rem; line-height:1.4;"></div>
+  </div>
 </div>
 
 <script>
@@ -121,6 +131,11 @@
   let nextNodeIdCounter = 1;
   // Keeps track of the path taken through the conversation. Each entry is a node id.
   let history = [];
+  // Name of the NPC character
+  let npcName = '';
+  // Holds the conversation log entries: {speaker: string, text: string}
+  // Each entry is either {type:'npc', nodeId: number} or {type:'player', text: string}
+  let conversationLog = [];
 
   // Helper to create a short preview of a node's NPC text.
   // Cleans whitespace and truncates long strings with an ellipsis.
@@ -182,6 +197,15 @@
       delBtn.dataset.index = index;
       delBtn.className = 'delete-response';
       div.appendChild(delBtn);
+
+      // Add a Play button if this response leads to an existing node
+      if (resp.nextNodeId) {
+        const playBtn = document.createElement('button');
+        playBtn.textContent = 'Play';
+        playBtn.dataset.index = index;
+        playBtn.className = 'play-response';
+        div.appendChild(playBtn);
+      }
       container.appendChild(div);
     });
   }
@@ -216,8 +240,59 @@
     });
   }
 
+  // Render the vertical conversation log between NPC and Player
+  function renderConversationLog() {
+    const logDiv = document.getElementById('conversationLog');
+    logDiv.innerHTML = '';
+    conversationLog.forEach(entry => {
+      const p = document.createElement('p');
+      let displayedSpeaker;
+      let text;
+      if (entry.type === 'npc') {
+        // NPC entry: use current NPC name and current node text
+        displayedSpeaker = npcName || 'NPC';
+        const node = nodes[entry.nodeId];
+        text = (node && node.text ? node.text : '[no text]');
+        // Create clickable span for NPC text
+        const strong = document.createElement('strong');
+        strong.textContent = displayedSpeaker + ': ';
+        p.appendChild(strong);
+        const span = document.createElement('span');
+        span.textContent = text;
+        span.style.cursor = 'pointer';
+        span.style.textDecoration = 'underline';
+        span.style.color = '#0066cc';
+        span.dataset.nodeId = entry.nodeId;
+        p.appendChild(span);
+      } else if (entry.type === 'player') {
+        displayedSpeaker = 'Player';
+        text = entry.text;
+        const strong = document.createElement('strong');
+        strong.textContent = displayedSpeaker + ': ';
+        p.appendChild(strong);
+        const span = document.createElement('span');
+        span.textContent = text;
+        p.appendChild(span);
+      }
+      logDiv.appendChild(p);
+    });
+  }
+
   // Navigate to a node, updating history and UI
-  function navigateToNode(id) {
+  function navigateToNode(id, fromResponse) {
+    // If coming from a player response, append the player and NPC lines to the conversation log
+    if (fromResponse !== undefined) {
+      conversationLog.push({ type: 'player', text: fromResponse });
+      conversationLog.push({ type: 'npc', nodeId: id });
+      renderConversationLog();
+    } else {
+      // If no conversation log yet, start with the NPC line for this node
+      if (conversationLog.length === 0) {
+        conversationLog.push({ type: 'npc', nodeId: id });
+        renderConversationLog();
+      }
+    }
+    // Update path history if this node isn't already the latest
     if (history.length === 0 || history[history.length - 1] !== id) {
       history.push(id);
     }
@@ -266,26 +341,40 @@
     URL.revokeObjectURL(url);
   }
 
+  // Sanitize strings for use as filenames. Replace spaces and unsafe characters.
+  function sanitizeFileName(name) {
+    // Remove leading/trailing whitespace and replace invalid characters with underscores
+    return (name || 'dialogue')
+      .trim()
+      .replace(/[^A-Za-z0-9-_ ]+/g, '')
+      .replace(/\s+/g, '_') || 'dialogue';
+  }
+
   // Export nodes as JSON
   function exportJSON() {
-    const data = { start: currentNodeId, nodes: nodes };
+    const data = { npcName: npcName, start: currentNodeId, nodes: nodes };
     const json = JSON.stringify(data, null, 2);
     downloadFile(json, 'dialogue.json', 'application/json');
   }
 
-  // Export as a simple human-readable text representation
+  // Export nodes as a simple human-readable text representation. File name includes NPC name if provided.
   function exportText() {
     let out = [];
-    Object.values(nodes).forEach(node => {
-      out.push(`Node ${node.id}: ${node.text}`);
-      node.responses.forEach((resp, idx) => {
-        let line = `  ${idx + 1}. ${resp.text}`;
-        if (resp.nextNodeId) line += ` -> ${resp.nextNodeId}`;
-        out.push(line);
+    Object.values(nodes)
+      .sort((a,b) => a.id - b.id)
+      .forEach(node => {
+        out.push(`Node ${node.id}: ${node.text}`);
+        node.responses.forEach((resp, idx) => {
+          let line = `  ${idx + 1}. ${resp.text}`;
+          if (resp.nextNodeId) line += ` -> ${resp.nextNodeId}`;
+          out.push(line);
+        });
+        out.push('');
       });
-      out.push('');
-    });
-    downloadFile(out.join('\n'), 'dialogue.txt', 'text/plain');
+    const base = sanitizeFileName(npcName);
+    // Include '-dialogue' suffix so file clearly contains dialogue, but avoid duplication when base is 'dialogue'
+    const filename = base === 'dialogue' ? 'dialogue.txt' : `${base}-dialogue.txt`;
+    downloadFile(out.join('\n'), filename, 'text/plain');
   }
 
   // Handle file import
@@ -295,24 +384,80 @@
     const reader = new FileReader();
     reader.onload = e => {
       const content = e.target.result;
-      try {
-        const data = JSON.parse(content);
-        if (data && data.nodes) {
-          nodes = {};
-          for (const [k, v] of Object.entries(data.nodes)) {
-            nodes[k] = {
-              id: v.id,
-              text: v.text,
-              responses: v.responses.map(r => ({ text: r.text, nextNodeId: r.nextNodeId }))
-            };
+      // Determine file type by extension
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (ext === 'txt') {
+        // Parse simple text format: Node lines followed by responses
+        const parsedNodes = {};
+        let currentId = null;
+        const lines = content.split(/\r?\n/);
+        lines.forEach(line => {
+          const nodeMatch = line.match(/^\s*Node\s+(\d+):\s*(.*)$/);
+          if (nodeMatch) {
+            const nid = parseInt(nodeMatch[1], 10);
+            const text = nodeMatch[2] || '';
+            parsedNodes[nid] = { id: nid, text: text, responses: [] };
+            currentId = nid;
+          } else {
+            const respMatch = line.match(/^\s*(\d+)\.\s*(.*?)\s*(?:->\s*(\d+))?\s*$/);
+            if (respMatch && currentId !== null && parsedNodes[currentId]) {
+              const rText = respMatch[2] || '';
+              const destId = respMatch[3] ? parseInt(respMatch[3], 10) : null;
+              parsedNodes[currentId].responses.push({ text: rText, nextNodeId: destId });
+            }
           }
-          currentNodeId = data.start || Object.keys(nodes)[0];
-          nextNodeIdCounter = Math.max(...Object.keys(nodes).map(id => parseInt(id))) + 1;
-          updateNodeSelect();
-          renderNode(currentNodeId);
+        });
+        // If no nodes found, abort
+        if (Object.keys(parsedNodes).length === 0) {
+          alert('No dialogue nodes found in the text file.');
+          return;
         }
-      } catch (err) {
-        alert('Unable to parse file. Please select a valid JSON dialogue file.');
+        // Sort node ids and pick the smallest as starting node
+        const sortedIds = Object.keys(parsedNodes).map(id => parseInt(id)).sort((a,b) => a - b);
+        const startId = sortedIds[0];
+        nodes = parsedNodes;
+        currentNodeId = startId;
+        nextNodeIdCounter = Math.max(...sortedIds) + 1;
+        // Set npcName from file name (remove extension)
+        const baseName = file.name.replace(/\.[^/.]+$/, '');
+        npcName = baseName || '';
+        // Update NPC name input
+        const npcInputEl = document.getElementById('npcNameInput');
+        if (npcInputEl) npcInputEl.value = npcName;
+        // Reset history and conversation log
+        history = [];
+        conversationLog = [];
+        updateNodeSelect();
+        navigateToNode(currentNodeId);
+      } else {
+        // Attempt to parse as JSON
+        try {
+          const data = JSON.parse(content);
+          if (data && data.nodes) {
+            nodes = {};
+            for (const [k, v] of Object.entries(data.nodes)) {
+              nodes[k] = {
+                id: v.id,
+                text: v.text,
+                responses: v.responses.map(r => ({ text: r.text, nextNodeId: r.nextNodeId }))
+              };
+            }
+            // If start property missing, default to first key
+            const idKeys = Object.keys(nodes).map(x => parseInt(x));
+            currentNodeId = data.start || (idKeys.length > 0 ? Math.min(...idKeys) : null);
+            nextNodeIdCounter = idKeys.length > 0 ? Math.max(...idKeys) + 1 : 1;
+            npcName = data.npcName || '';
+            const npcInputEl = document.getElementById('npcNameInput');
+            if (npcInputEl) npcInputEl.value = npcName;
+            // Reset history and conversation
+            history = [];
+            conversationLog = [];
+            updateNodeSelect();
+            if (currentNodeId !== null) navigateToNode(currentNodeId);
+          }
+        } catch (err) {
+          alert('Unable to parse file. Please select a valid dialogue file.');
+        }
       }
     };
     reader.readAsText(file);
@@ -323,11 +468,18 @@
     const target = ev.target;
     const index = parseInt(target.dataset.index, 10);
     if (isNaN(index)) return;
-    if (target.classList.contains('create-branch')) {
-      // Create a new branch node and link this response to it
+    if (target.classList.contains('play-response')) {
+      // Play the selected response and move to its target node
+      const resp = nodes[currentNodeId].responses[index];
+      if (resp.nextNodeId) {
+        navigateToNode(resp.nextNodeId, resp.text);
+      }
+    } else if (target.classList.contains('create-branch')) {
+      // Create a new branch node and link this response to it; treat as playing through this branch
       const newId = createNode('');
+      const respText = nodes[currentNodeId].responses[index].text;
       nodes[currentNodeId].responses[index].nextNodeId = newId;
-      navigateToNode(newId);
+      navigateToNode(newId, respText);
     } else if (target.classList.contains('link-existing')) {
       // Replace button with a dropdown to select existing node. Include a preview of the NPC text for each node.
       const dropdown = document.createElement('select');
@@ -369,7 +521,9 @@
   function onResponsesInput(ev) {
     const target = ev.target;
     const index = parseInt(target.dataset.index, 10);
-    if (!isNaN(index) && nodes[currentNodeId]) {
+    // Only update the response text if the input field is the response text input
+    // Skip if the input event came from the link dropdown or other elements
+    if (!isNaN(index) && nodes[currentNodeId] && target.tagName === 'INPUT' && target.classList.contains('response-text')) {
       nodes[currentNodeId].responses[index].text = target.value;
     }
   }
@@ -381,12 +535,13 @@
       const newId = createNode('');
       navigateToNode(newId);
     });
-    document.getElementById('exportButton').addEventListener('click', exportJSON);
     document.getElementById('exportTextButton').addEventListener('click', exportText);
     document.getElementById('importFile').addEventListener('change', importFile);
     document.getElementById('nodeSelect').addEventListener('change', function() {
       const selected = parseInt(this.value, 10);
       if (nodes[selected]) {
+        // Reset conversation log when jumping via the dropdown
+        conversationLog = [];
         navigateToNode(selected);
       }
     });
@@ -404,16 +559,23 @@
       if (history.length > 1) {
         history.pop();
         const prevId = history[history.length - 1];
-        currentNodeId = prevId;
-        renderNode(prevId);
-        updateNodeSelect();
-        renderHistory();
+        // Reset conversation log when going back via the history
+        conversationLog = [];
+        navigateToNode(prevId);
       }
     });
     // Bind refresh names button
     document.getElementById('refreshNamesButton').addEventListener('click', function() {
       updateNodeSelect();
       renderHistory();
+      renderConversationLog();
+    });
+    // Bind NPC name input
+    const npcInputNameEl = document.getElementById('npcNameInput');
+    npcInputNameEl.addEventListener('input', function() {
+      npcName = this.value.trim();
+      // Update conversation log to reflect new NPC name
+      renderConversationLog();
     });
     // Bind history click handler
     document.getElementById('historyList').addEventListener('click', function(e) {
@@ -423,16 +585,29 @@
         if (idx !== history.length - 1) {
           history = history.slice(0, idx + 1);
           const id = history[history.length - 1];
-          currentNodeId = id;
-          renderNode(id);
-          updateNodeSelect();
-          renderHistory();
+          // Reset conversation log when jumping via the history trail
+          conversationLog = [];
+          navigateToNode(id);
         }
       }
     });
     // Initialize with one blank node
     const id = createNode('');
+    // Clear conversation log and start at initial node
+    conversationLog = [];
     navigateToNode(id);
+
+    // Bind click on conversation log to navigate to NPC entries
+    document.getElementById('conversationLog').addEventListener('click', function(e) {
+      const nodeIdStr = e.target.dataset && e.target.dataset.nodeId;
+      if (nodeIdStr) {
+        const nodeId = parseInt(nodeIdStr, 10);
+        if (!isNaN(nodeId) && nodes[nodeId]) {
+          conversationLog = [];
+          navigateToNode(nodeId);
+        }
+      }
+    });
   });
 })();
 </script>
