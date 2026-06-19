@@ -6,126 +6,728 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Branching Dialogue Editor</title>
   <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef4ff;
+      --bg-accent: #f8fbff;
+      --surface: #ffffff;
+      --surface-muted: #f4f7fb;
+      --border: #d9e2ef;
+      --border-strong: #b9c7d9;
+      --text: #172033;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --primary-soft: #dbeafe;
+      --success: #047857;
+      --success-soft: #d1fae5;
+      --warning: #b45309;
+      --warning-soft: #fef3c7;
+      --danger: #b91c1c;
+      --danger-soft: #fee2e2;
+      --shadow: 0 20px 45px rgba(36, 54, 94, 0.14);
+      --radius-lg: 22px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial, sans-serif;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 0;
       padding: 0;
-      background-color: #f7f7f7;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(96, 165, 250, 0.22), transparent 34rem),
+        linear-gradient(135deg, var(--bg) 0%, #f8fafc 48%, #eef2ff 100%);
+      min-height: 100vh;
     }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    button,
+    .file-picker-label {
+      border: 0;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover,
+    .file-picker-label:hover {
+      transform: translateY(-1px);
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible,
+    select:focus-visible,
+    .file-picker-label:focus-within {
+      outline: 3px solid rgba(37, 99, 235, 0.28);
+      outline-offset: 2px;
+    }
+
     #app {
-      max-width: 600px;
+      width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
-      padding: 16px;
+      padding: 28px 0 40px;
     }
-    h2 {
-      text-align: center;
-      margin-bottom: 16px;
+
+    .hero {
+      background: linear-gradient(135deg, #1e3a8a, #2563eb 58%, #38bdf8);
+      color: #fff;
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
     }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.76);
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      font-size: clamp(2rem, 5vw, 3.7rem);
+      letter-spacing: -0.06em;
+      line-height: 0.95;
+    }
+
+    .hero-copy {
+      max-width: 720px;
+      margin: 0;
+      color: rgba(255, 255, 255, 0.84);
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .quick-guide {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .guide-card {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      box-shadow: 0 10px 24px rgba(36, 54, 94, 0.08);
+    }
+
+    .guide-card strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .guide-card span {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
     #controls {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(255, 255, 255, 0.82);
+      border-radius: var(--radius-lg);
+      padding: 12px;
+      box-shadow: 0 10px 30px rgba(36, 54, 94, 0.08);
+      backdrop-filter: blur(10px);
+    }
+
+    #controls button,
+    .file-picker-label {
+      min-height: 46px;
+      padding: 10px 12px;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-align: center;
+    }
+
+    #newNodeButton,
+    #exportTextButton {
+      background: var(--primary) !important;
+      color: #fff !important;
+      border-color: transparent !important;
+      box-shadow: 0 12px 20px rgba(37, 99, 235, 0.22);
+    }
+
+    #newNodeButton:hover,
+    #exportTextButton:hover {
+      background: var(--primary-dark) !important;
+    }
+
+    #importFile {
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      overflow: hidden;
+      position: absolute;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel,
+    #editor,
+    #conversationSection {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(217, 226, 239, 0.9);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 16px 40px rgba(36, 54, 94, 0.1);
+    }
+
+    .panel {
+      padding: 16px;
+      position: sticky;
+      top: 16px;
+    }
+
+    .panel + .panel {
+      margin-top: 14px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .section-title h2,
+    .section-title h3,
+    .section-title h4 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .hint {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    #nodeSelect,
+    #npcNameInput,
+    textarea,
+    .response input[type="text"],
+    .link-dropdown {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--text);
+      padding: 11px 12px;
+      box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    #nodeSelect {
+      margin-bottom: 0;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .metric {
+      border-radius: var(--radius-md);
+      padding: 12px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+    }
+
+    .metric-value {
+      display: block;
+      font-size: 1.45rem;
+      font-weight: 900;
+      color: var(--primary);
+      line-height: 1;
+    }
+
+    .metric-label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 800;
+    }
+
+    .main-column {
+      display: grid;
+      gap: 18px;
+    }
+
+    #editor {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .editor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 20px;
+      background: linear-gradient(180deg, #fff, var(--bg-accent));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .editor-header h2 {
+      margin-bottom: 5px;
+      letter-spacing: -0.02em;
+    }
+
+    .node-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: #1e40af;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .field-group {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .field-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-weight: 900;
+    }
+
+    .field-label small {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    textarea {
+      min-height: 130px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .response-header {
+      padding: 18px 20px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .response-header h3 {
+      margin: 0;
+    }
+
+    #responsesContainer {
+      padding: 12px 20px 4px;
+    }
+
+    .empty-state {
+      border: 1px dashed var(--border-strong);
+      background: var(--surface-muted);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      text-align: center;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .response {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) auto;
+      grid-template-areas:
+        "input status"
+        "actions actions";
+      gap: 10px;
+      margin-bottom: 12px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: #fff;
+      box-shadow: 0 8px 20px rgba(36, 54, 94, 0.06);
+    }
+
+    .response input[type="text"] {
+      grid-area: input;
+    }
+
+    .link-info {
+      grid-area: status;
+      align-self: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 0.83rem;
+      font-weight: 900;
+      color: var(--warning);
+      background: var(--warning-soft);
+      white-space: nowrap;
+    }
+
+    .link-info.linked {
+      color: var(--success);
+      background: var(--success-soft);
+    }
+
+    .response-actions {
+      grid-area: actions;
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 12px;
     }
-    #controls button {
-      flex: 1 1 auto;
-      padding: 6px;
+
+    .response button,
+    #addResponseButton {
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      background: var(--surface-muted);
+      color: var(--text);
     }
-    #controls input[type="file"] {
-      flex: 1 1 auto;
+
+    .response .play-response {
+      background: var(--success);
+      color: #fff;
+      border-color: transparent;
     }
-    #editor {
-      background: #fff;
-      border-radius: 8px;
-      padding: 12px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+    .response .delete-response {
+      background: var(--danger-soft);
+      color: var(--danger);
+      border-color: rgba(185, 28, 28, 0.18);
     }
-    textarea {
-      width: 100%;
-      min-height: 60px;
-      padding: 6px;
-      box-sizing: border-box;
-      margin-bottom: 12px;
-      resize: vertical;
-      font-size: 1rem;
+
+    #addResponseButton {
+      display: flex;
+      width: calc(100% - 40px);
+      margin: 4px 20px 20px;
+      min-height: 48px;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      background: #111827;
+      border-color: transparent;
     }
-    .response {
+
+    #conversationSection {
+      padding: 20px;
+    }
+
+    #conversationLog {
+      display: grid;
+      gap: 10px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    #conversationLog:empty::before {
+      content: "Play linked responses to preview the conversation here.";
+      display: block;
+      color: var(--muted);
+      padding: 14px;
+      border-radius: var(--radius-md);
+      background: var(--surface-muted);
+      border: 1px dashed var(--border-strong);
+    }
+
+    .log-entry {
+      margin: 0;
+      max-width: 82%;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface-muted);
+    }
+
+    .log-entry.npc {
+      justify-self: start;
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    .log-entry.player {
+      justify-self: end;
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+    }
+
+    .log-entry strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+
+    .clickable-node {
+      color: #1d4ed8;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      cursor: pointer;
+    }
+
+    #historySection {
+      display: block !important;
+    }
+
+    #historyList {
       display: flex;
       flex-wrap: wrap;
-      gap: 4px;
-      margin-bottom: 8px;
+      gap: 6px;
+      font-size: 0.9rem;
+      line-height: 1.4;
     }
-    .response input[type="text"] {
-      flex: 1 1 auto;
-      padding: 4px;
-    }
-    .response button {
-      flex: 0 0 auto;
-      padding: 4px 6px;
-      font-size: 0.85rem;
-    }
-    .link-info {
-      flex: 0 0 auto;
-      font-size: 0.8rem;
-      padding: 4px 6px;
-    }
-    #addResponseButton {
-      display: block;
-      width: 100%;
-      margin-top: 8px;
-      padding: 8px;
-    }
-    #nodeSelect {
-      width: 100%;
-      padding: 6px;
-      margin-bottom: 12px;
-      box-sizing: border-box;
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     /* Ensure form controls have at least a 16px font size to prevent mobile auto-zoom */
     input[type="text"], textarea, button, select {
       font-size: 16px !important;
     }
+
+    @media (max-width: 900px) {
+      .quick-guide,
+      #controls,
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        position: static;
+      }
+    }
+
+    @media (max-width: 560px) {
+      #app {
+        width: min(100% - 20px, 1180px);
+        padding-top: 10px;
+      }
+
+      .hero {
+        padding: 22px;
+        border-radius: 22px;
+      }
+
+      .editor-header,
+      .response-header,
+      .field-group,
+      #conversationSection {
+        padding: 16px;
+      }
+
+      #responsesContainer {
+        padding: 10px 16px 2px;
+      }
+
+      #addResponseButton {
+        width: calc(100% - 32px);
+        margin: 4px 16px 16px;
+      }
+
+      .response {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "status"
+          "input"
+          "actions";
+      }
+
+      .link-info {
+        justify-content: flex-start;
+      }
+
+      .log-entry {
+        max-width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
 <div id="app">
-  <h2>Branching Dialogue Editor</h2>
-  <div id="controls">
-    <button id="newNodeButton">New Node</button>
-    <!-- Only TXT export and import; JSON functionality removed -->
-    <button id="exportTextButton">Save TXT</button>
-    <button id="backButton">Back</button>
-    <button id="refreshNamesButton">Refresh Names</button>
+  <header class="hero">
+    <p class="eyebrow">Dialogue builder</p>
+    <h1>Branching Dialogue Editor</h1>
+    <p class="hero-copy">Write NPC lines, add player choices, connect branches, and test the flow in a readable conversation preview.</p>
+  </header>
+
+  <section class="quick-guide" aria-label="Quick start guide">
+    <div class="guide-card">
+      <strong>1. Write the NPC line</strong>
+      <span>Use the main editor to define what the character says at this node.</span>
+    </div>
+    <div class="guide-card">
+      <strong>2. Add choices</strong>
+      <span>Create player responses and see whether each one is linked or still needs a branch.</span>
+    </div>
+    <div class="guide-card">
+      <strong>3. Connect branches</strong>
+      <span>Create a new branch or link to an existing node to shape the dialogue tree.</span>
+    </div>
+    <div class="guide-card">
+      <strong>4. Play and export</strong>
+      <span>Preview the path as chat bubbles, then save your dialogue as a TXT file.</span>
+    </div>
+  </section>
+
+  <div id="controls" aria-label="Primary actions">
+    <button id="newNodeButton" type="button">＋ New Node</button>
+    <button id="exportTextButton" type="button">⬇ Save TXT</button>
+    <button id="backButton" type="button">← Back</button>
+    <button id="refreshNamesButton" type="button">↻ Refresh View</button>
+    <label class="file-picker-label" for="importFile">⬆ Import TXT</label>
     <input type="file" id="importFile" accept=".txt">
   </div>
-  <div>
-    <label for="nodeSelect">Go to Node:</label>
-    <select id="nodeSelect"></select>
-  </div>
 
-  <!-- History display (hidden now to avoid clutter) -->
-  <div id="historySection" style="margin-top: 12px; display:none;">
-    <h4 style="margin-bottom:4px;">History</h4>
-    <div id="historyList" style="font-size:0.9rem; line-height:1.4;"></div>
-  </div>
-  <div id="editor">
-    <h3>Node <span id="nodeIdDisplay"></span></h3>
-    <label for="npcInput">NPC says:</label>
-    <textarea id="npcInput" placeholder="Enter NPC dialogue..."></textarea>
-    <h4>Player Responses:</h4>
-    <div id="responsesContainer"></div>
-    <button id="addResponseButton">Add Response</button>
-  </div>
+  <div class="workspace">
+    <aside class="sidebar" aria-label="Dialogue overview">
+      <section class="panel">
+        <div class="section-title">
+          <h2>Dialogue Map</h2>
+        </div>
+        <label for="nodeSelect" class="field-label">Go to node</label>
+        <select id="nodeSelect"></select>
+        <p class="hint">Jump between nodes by ID and preview text. The current node opens in the editor.</p>
+        <div class="overview-grid" aria-label="Dialogue totals">
+          <div class="metric">
+            <span class="metric-value" id="nodeCount">0</span>
+            <span class="metric-label">Nodes</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value" id="responseCount">0</span>
+            <span class="metric-label">Choices</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value" id="linkedCount">0</span>
+            <span class="metric-label">Linked</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value" id="unlinkedCount">0</span>
+            <span class="metric-label">To link</span>
+          </div>
+        </div>
+      </section>
 
-  <!-- NPC name and conversation log -->
-  <div style="margin-top: 12px;">
-    <label for="npcNameInput">NPC Name:</label>
-    <input type="text" id="npcNameInput" placeholder="NPC" style="width:100%; padding:6px; box-sizing:border-box;" />
-  </div>
-  <div id="conversationSection" style="margin-top: 12px;">
-    <h4 style="margin-bottom:4px;">Conversation</h4>
-    <div id="conversationLog" style="font-size:0.9rem; line-height:1.4;"></div>
+      <section id="historySection" class="panel">
+        <div class="section-title">
+          <h3>Path Trail</h3>
+        </div>
+        <div id="historyList"></div>
+        <p class="hint">Click an earlier step to revisit that node while testing paths.</p>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <h3>Character</h3>
+        </div>
+        <label for="npcNameInput" class="field-label">NPC name</label>
+        <input type="text" id="npcNameInput" placeholder="NPC" />
+        <p class="hint">This name appears in the preview and is used for the exported filename.</p>
+      </section>
+    </aside>
+
+    <main class="main-column">
+      <section id="editor" aria-label="Current node editor">
+        <div class="editor-header">
+          <div>
+            <p class="eyebrow" style="color: var(--primary);">Current node</p>
+            <h2>Build this scene</h2>
+            <p class="hint">A node is one NPC line plus the player choices that can follow it.</p>
+          </div>
+          <span class="node-badge">Node <span id="nodeIdDisplay"></span></span>
+        </div>
+
+        <div class="field-group">
+          <label for="npcInput" class="field-label">
+            <span>NPC says</span>
+            <small>What the player sees first</small>
+          </label>
+          <textarea id="npcInput" placeholder="Enter NPC dialogue..."></textarea>
+        </div>
+
+        <div class="response-header">
+          <div>
+            <h3>Player choices</h3>
+            <p class="hint">Each choice can create a new branch, link to another node, or be played when connected.</p>
+          </div>
+        </div>
+        <div id="responsesContainer"></div>
+        <button id="addResponseButton" type="button">＋ Add Player Choice</button>
+      </section>
+
+      <section id="conversationSection" aria-label="Conversation preview">
+        <div class="section-title">
+          <div>
+            <h3>Playable Preview</h3>
+            <p class="hint">Use Play on linked choices to see the conversation like an in-game exchange. NPC bubbles are clickable shortcuts.</p>
+          </div>
+        </div>
+        <div id="conversationLog"></div>
+      </section>
+    </main>
   </div>
 </div>
 
@@ -171,49 +773,69 @@
     document.getElementById('npcInput').value = node.text;
     const container = document.getElementById('responsesContainer');
     container.innerHTML = '';
+
+    if (node.responses.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No player choices yet. Add one to start branching this scene.';
+      container.appendChild(empty);
+    }
+
     node.responses.forEach((resp, index) => {
       const div = document.createElement('div');
       div.className = 'response';
       const input = document.createElement('input');
       input.type = 'text';
       input.value = resp.text;
+      input.placeholder = `Player choice ${index + 1}`;
       input.dataset.index = index;
       input.className = 'response-text';
+      input.setAttribute('aria-label', `Player choice ${index + 1}`);
       div.appendChild(input);
       // Show link info if exists
       const linkInfo = document.createElement('span');
-      linkInfo.className = 'link-info';
-      linkInfo.textContent = resp.nextNodeId ? `(→ ${resp.nextNodeId})` : '';
+      linkInfo.className = resp.nextNodeId ? 'link-info linked' : 'link-info';
+      linkInfo.textContent = resp.nextNodeId ? `Linked → Node ${resp.nextNodeId}` : 'Needs link';
       div.appendChild(linkInfo);
+
+      const actions = document.createElement('div');
+      actions.className = 'response-actions';
       // Create branch button
       const branchBtn = document.createElement('button');
-      branchBtn.textContent = 'Create Branch';
+      branchBtn.type = 'button';
+      branchBtn.textContent = resp.nextNodeId ? 'Create New Branch' : 'Create Branch';
       branchBtn.dataset.index = index;
       branchBtn.className = 'create-branch';
-      div.appendChild(branchBtn);
+      actions.appendChild(branchBtn);
       // Link button
       const linkBtn = document.createElement('button');
-      linkBtn.textContent = 'Link…';
+      linkBtn.type = 'button';
+      linkBtn.textContent = 'Link Existing…';
       linkBtn.dataset.index = index;
       linkBtn.className = 'link-existing';
-      div.appendChild(linkBtn);
-      // Delete button
-      const delBtn = document.createElement('button');
-      delBtn.textContent = 'Delete';
-      delBtn.dataset.index = index;
-      delBtn.className = 'delete-response';
-      div.appendChild(delBtn);
+      actions.appendChild(linkBtn);
 
       // Add a Play button if this response leads to an existing node
       if (resp.nextNodeId) {
         const playBtn = document.createElement('button');
-        playBtn.textContent = 'Play';
+        playBtn.type = 'button';
+        playBtn.textContent = '▶ Play Choice';
         playBtn.dataset.index = index;
         playBtn.className = 'play-response';
-        div.appendChild(playBtn);
+        actions.appendChild(playBtn);
       }
+
+      // Delete button
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.textContent = 'Delete';
+      delBtn.dataset.index = index;
+      delBtn.className = 'delete-response';
+      actions.appendChild(delBtn);
+      div.appendChild(actions);
       container.appendChild(div);
     });
+    updateOverview();
   }
 
   // Render the conversation history as a clickable trail
@@ -259,25 +881,25 @@
         displayedSpeaker = npcName || 'NPC';
         const node = nodes[entry.nodeId];
         text = (node && node.text ? node.text : '[no text]');
+        p.className = 'log-entry npc';
         // Create clickable span for NPC text
         const strong = document.createElement('strong');
-        strong.textContent = displayedSpeaker + ': ';
+        strong.textContent = `${displayedSpeaker} · Node ${entry.nodeId}`;
         p.appendChild(strong);
         const span = document.createElement('span');
         span.textContent = text;
-        span.style.cursor = 'pointer';
-        span.style.textDecoration = 'underline';
-        span.style.color = '#0066cc';
+        span.className = 'clickable-node';
         span.dataset.nodeId = entry.nodeId;
         p.appendChild(span);
       } else if (entry.type === 'player') {
         displayedSpeaker = 'Player';
         text = entry.text;
+        p.className = 'log-entry player';
         const strong = document.createElement('strong');
-        strong.textContent = displayedSpeaker + ': ';
+        strong.textContent = displayedSpeaker;
         p.appendChild(strong);
         const span = document.createElement('span');
-        span.textContent = text;
+        span.textContent = text || '[empty choice]';
         p.appendChild(span);
       }
       logDiv.appendChild(p);
@@ -332,6 +954,25 @@
     if (currentNodeId && nodes[currentNodeId]) {
       select.value = currentNodeId;
     }
+    updateOverview();
+  }
+
+
+  // Refresh the sidebar metrics so authors can understand the dialogue at a glance.
+  function updateOverview() {
+    const allNodes = Object.values(nodes);
+    const responses = allNodes.flatMap(node => node.responses);
+    const linked = responses.filter(resp => resp.nextNodeId).length;
+    const metrics = {
+      nodeCount: allNodes.length,
+      responseCount: responses.length,
+      linkedCount: linked,
+      unlinkedCount: responses.length - linked
+    };
+    Object.entries(metrics).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    });
   }
 
   // Download helper: triggers a file download for exported content
